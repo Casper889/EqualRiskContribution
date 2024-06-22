@@ -1,5 +1,6 @@
 import sqlite3
 import random
+import pandas as pd
 from datetime import datetime, timedelta
 
 class ReturnSeriesGenerator:
@@ -12,7 +13,12 @@ class ReturnSeriesGenerator:
 
         # Create table if it doesn't exist
         cursor.execute('''CREATE TABLE IF NOT EXISTS returns
-                          (date TEXT, return REAL)''')
+                          (date TEXT, sector TEXT, return REAL)''')
+
+        # List of sectors
+        sectors = ['Technology', 'Healthcare', 'Finance', 'Consumer Goods', 'Energy',
+                   'Utilities', 'Real Estate', 'Materials', 'Industrials', 'Telecommunications']
+
 
         # Generate and insert returns into the database
         start_date = datetime(2000, 1, 1)
@@ -20,12 +26,13 @@ class ReturnSeriesGenerator:
         current_date = start_date
 
         while current_date <= end_date:
-            # Generate a random return with a 5% positive bias
-            return_value = random.uniform(0, 0.05)
+            for sector in sectors:
+                # Generate a random return with a 5% positive bias
+                return_value = random.uniform(0, 0.05 * 1/252)
 
-            # Insert the return into the database
-            cursor.execute("INSERT INTO returns VALUES (?, ?)",
-                           (current_date.strftime('%Y-%m-%d'), return_value))
+                # Insert the return into the database
+                cursor.execute("INSERT INTO returns VALUES (?, ?, ?)",
+                    (current_date.strftime('%Y-%m-%d'), sector, return_value))
 
             # Move to the next day
             current_date += timedelta(days=1)
@@ -35,5 +42,7 @@ class ReturnSeriesGenerator:
         conn.close()
 
 # Usage example
-generator = ReturnSeriesGenerator('returns.db')
-generator.generate_return_series()
+if __name__ == "__main__":
+    db_path = "/Users/casper/Nextcloud2/ERC/data.db"  # Replace with the actual path to the database file
+    generator = ReturnSeriesGenerator('data.db')
+    generator.generate_return_series()
