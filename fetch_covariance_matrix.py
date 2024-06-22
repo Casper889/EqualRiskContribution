@@ -26,5 +26,6 @@ class CovarianceMatrixReader:
     
 if __name__ == "__main__":
     reader = CovarianceMatrixReader('data.db')
-    covariance_matrices = reader.read_covariance_matrix('2024-01-01')
+    covariance_matrices = reader.read_covariance_matrix('20240101')
+    pdb.set_trace()
     print(covariance_matrices)

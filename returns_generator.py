@@ -2,6 +2,7 @@ import sqlite3
 import random
 import pandas as pd
 from datetime import datetime, timedelta
+from tqdm import tqdm
 
 class ReturnSeriesGenerator:
     def __init__(self, db_file):
@@ -15,20 +16,25 @@ class ReturnSeriesGenerator:
         cursor.execute('''CREATE TABLE IF NOT EXISTS returns
                           (date TEXT, sector TEXT, return REAL)''')
 
-        # List of sectors
-        sectors = ['Technology', 'Healthcare', 'Finance', 'Consumer Goods', 'Energy',
-                   'Utilities', 'Real Estate', 'Materials', 'Industrials', 'Telecommunications']
-
+        # List of sectors and their variances
+        sectors_variances = {
+            'Technology': 0.02, 'Healthcare': 0.015, 'Finance': 0.018, 'Consumer Goods': 0.013,
+            'Energy': 0.02, 'Utilities': 0.01, 'Real Estate': 0.017, 'Materials': 0.016,
+            'Industrials': 0.019, 'Telecommunications': 0.014
+        }
 
         # Generate and insert returns into the database
         start_date = datetime(2000, 1, 1)
         end_date = datetime.now()
         current_date = start_date
 
+        annual_skew = 0.05
+        daily_skew = annual_skew / 252  # Assuming 252 trading days in a year
+
         while current_date <= end_date:
-            for sector in sectors:
+            for sector, variance in sectors_variances.items():
                 # Generate a random return with a 5% positive bias
-                return_value = random.uniform(0, 0.05 * 1/252)
+                return_value = random.gauss(daily_skew, variance / 252)  # Convert annual variance to daily
 
                 # Insert the return into the database
                 cursor.execute("INSERT INTO returns VALUES (?, ?, ?)",
