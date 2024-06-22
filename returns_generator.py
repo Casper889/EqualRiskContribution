@@ -29,12 +29,12 @@ class ReturnSeriesGenerator:
         current_date = start_date
 
         annual_skew = 0.05
-        daily_skew = annual_skew / 252  # Assuming 252 trading days in a year
+        daily_skew = annual_skew / 365  # Assuming 365 trading days in a year
 
         while current_date <= end_date:
             for sector, variance in sectors_variances.items():
                 # Generate a random return with a 5% positive bias
-                return_value = random.gauss(daily_skew, variance / 252)  # Convert annual variance to daily
+                return_value = random.gauss(daily_skew / 365, variance)  # Convert annual variance to daily
 
                 # Insert the return into the database
                 cursor.execute("INSERT INTO returns VALUES (?, ?, ?)",
