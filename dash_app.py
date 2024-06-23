@@ -13,7 +13,7 @@ app = dash.Dash(__name__)
 # Simulate selecting some sectors
 selected_sectors = select_sectors(sectors, 8)
 
-adjusted_weight, covariance_matrix = run_simulation(pd.Timestamp('20240101'))
+adjusted_weight, covariance_matrix = run_simulation(pd.Timestamp('20010503'))
 adjusted_weight = pd.Series(adjusted_weight, index=sectors)
 
 tracking_error = calculate_active_risk(pd.Series(adjusted_weight), covariance_matrix)

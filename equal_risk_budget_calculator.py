@@ -79,7 +79,7 @@ def optimize_weights(selected_sectors, baseline_weights, covariance_matrix):
     # Objective function to minimize the range of risk contributions across sectors
     def objective(weights):
         risk_contributions = total_risk_contribution(weights)
-        return max(risk_contributions) - min(risk_contributions)
+        return np.var(risk_contributions)
     
     # Constraints and bounds
     constraints = ({'type': 'eq', 'fun': lambda x: np.sum(x)}, # The sum of active weights must be 0
