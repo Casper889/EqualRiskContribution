@@ -49,6 +49,7 @@ def calculate_active_risk(weights, covariance_matrix):
     portfolio_variance = np.dot(weights.T, np.dot(covariance_matrix, weights))
     return np.sqrt(portfolio_variance)
 
+
 # Optimization function to equalize active risk
 def optimize_weights(selected_sectors, baseline_weights, covariance_matrix):
     # Initial guess (equal weights for selected sectors)
@@ -103,8 +104,6 @@ def optimize_weights(selected_sectors, baseline_weights, covariance_matrix):
 
     return best_solution
 
-
-
 if __name__ == '__main__':
 
     reader = CovarianceMatrixReader('data.db')
@@ -114,7 +113,7 @@ if __name__ == '__main__':
     active_weights_calculated = {}
 
     for date in tqdm(pd.date_range('20060101', '20240101', freq='ME')):
-
+    
         selected_sectors = select_sectors(sectors, 8)
 
         covariance_matrix = reader.read_covariance_matrix(date.strftime('%Y%m%d'))
@@ -132,4 +131,9 @@ if __name__ == '__main__':
         
         risk_contribs[date] = total_risk_contribution(adjusted_weights)
 
-    pdb.set_trace()
+def run_simulation(date):
+    reader = CovarianceMatrixReader('data.db')
+    selected_sectors = select_sectors(sectors, 8)
+    covariance_matrix = reader.read_covariance_matrix(date.strftime('%Y%m%d'))
+    adjusted_weights = optimize_weights(selected_sectors, baseline_weights, covariance_matrix)
+    return adjusted_weights, covariance_matrix
