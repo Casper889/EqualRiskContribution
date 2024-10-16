@@ -66,7 +66,3 @@ Note on Buybacks:
 
 Closing:
 “In summary, while P-CAPE provides an interesting adjustment for retained earnings, it doesn’t account for companies that use buybacks instead of reinvestment. This leads to an overestimation of future growth in companies that prioritize buybacks, making P-CAPE less effective in practice than traditional CAPE, especially for companies that engage heavily in share repurchases.
-
-Thank you for your attention, and I’d be happy to discuss this further.”
-
-This script provides a detailed walkthrough of your analysis, with references to the charts, and ends with a critique of how P-CAPE handles buybacks compared to CAPE. Let me know if you'd like to tweak any parts!
