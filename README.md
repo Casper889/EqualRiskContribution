@@ -1,68 +1,95 @@
+import pandas as pd
+import pdblp
+import glob
+import os
+from datetime import datetime
 
-Here is an extended presentation script based on your bullet points, followed by a walkthrough of the charts and findings, concluding with the "note on buybacks." This will help you structure your presentation effectively, keeping it clear and accessible:
+# Initialize Bloomberg connection
+con = pdblp.BCon(debug=False, port=8194, timeout=50000)
+con.start()
 
-Introduction:
-“Thank you for the opportunity to present my analysis. Today, I’ll walk through the P-CAPE paper, explain the key points from my research, and offer a critique based on the paper’s assumptions and limitations, particularly regarding share buybacks.”
+# Directory containing all CSV files
+directory_path = os.getcwd()  # Adjust to your directory
 
-1. Summary of the P-CAPE Paper:
-Dividend Payout Problem:
+# Define a function to load weight data from each CSV file in the directory
+def load_weights_from_directory(directory_path):
+    all_files = glob.glob(os.path.join(directory_path, "*.csv"))
+    weight_data = pd.DataFrame()
+    
+    for file_path in all_files:
+        # Extract the date from the filename (assuming format is consistent with your example)
+        date_str = file_path.split('-')[-3] + '-' + file_path.split('-')[-2] + '-' + file_path.split('-')[-1].replace('.csv', '')
+        date = pd.to_datetime(date_str)
+        
+        # Read each CSV file and select relevant columns
+        df = pd.read_csv(file_path)
+        df['Date'] = date
+        df = df[['Date', 'SEDOL', 'Weight']]  # Only keep necessary columns
+        weight_data = pd.concat([weight_data, df])
+        
+    return weight_data
 
-“The paper starts by pointing out a limitation in the traditional CAPE ratio, which is that CAPE doesn’t account for the growth of earnings reinvested into the business. The authors argue that this creates a gap between what the CAPE suggests and the true potential returns companies might generate if they reinvest their retained earnings into growth.”
+# Load all weights
+weight_data = load_weights_from_directory(directory_path)
 
-“The basic idea here is that if companies reinvest their earnings instead of paying them out as dividends, they should expect a yield similar to the prevailing CAPE yield on those reinvested earnings.”
+# Fetch daily price data without dividends for each SEDOL
+def fetch_daily_price_returns(sedols, start_date, end_date):
+    # Use overrides to exclude dividends from price returns
+    overrides = [('CshAdjAbnormal', False), ('CapChg', False), ('CshAdjNormal', False)]  # Ensures price-only returns
+    
+    # Dictionary to store data for each SEDOL
+    data_dict = {}
+    
+    for sedol in sedols:
+        # Add the "SEDOL" prefix as needed
+        formatted_sedol = f"/sedol1/{sedol}"
+        try:
+            # Fetch data for each SEDOL
+            data = con.bdh(formatted_sedol, 'PX_LAST', start_date.replace("-",""), end_date.replace("-",""), elms=overrides)
+            data.columns = [sedol]  # Rename column to SEDOL identifier for merging
+            data_dict[sedol] = data
+        except Exception as e:
+            print(f"Error fetching data for SEDOL {sedol}: {e}")
 
-The P-CAPE Concept:
+    # Concatenate all data into a single DataFrame
+    combined_data = pd.concat(data_dict.values(), axis=1)
+    combined_data.index.name = 'Date'
+    combined_data.columns.name = 'SEDOL'
+    
+    # Stack the DataFrame to convert to a long format, if needed
+    data = combined_data.stack().reset_index()
+    data.columns = ['Date', 'SEDOL', 'Price']
+    
+    # Pivot back to a wide format if required by later processing
+    data = data.pivot(index='Date', columns='SEDOL', values='Price')
+    
+    return data
 
-“To address this, the authors introduce P-CAPE. The idea is to improve the predictive power of the CAPE yield by adjusting for historic earnings that weren’t paid out as dividends. These earnings are compounded at the CAPE yield rate to the current date, assuming that reinvestment will lead to future growth.”
+# Extract unique SEDOLs and set start and end dates for price data fetching
+unique_sedols = weight_data['SEDOL'].unique().tolist()
+start_date = weight_data['Date'].min().strftime('%Y-%m-%d')
+end_date = weight_data['Date'].max().strftime('%Y-%m-%d')
+price_data = fetch_daily_price_returns(unique_sedols, start_date, end_date)
 
-“Essentially, P-CAPE modifies the earnings time series, adjusting it for the fact that earnings were retained and supposedly invested for future growth.”
+# Calculate daily returns for each SEDOL
+daily_returns = price_data.pct_change()
 
-Why P-CAPE Might Be Better:
+# Ensure Date columns are in datetime format
+weight_data['Date'] = pd.to_datetime(weight_data['Date'])
+daily_returns.index = pd.to_datetime(daily_returns.index)
 
-“The P-CAPE, as described, would favor companies that reinvest their earnings. The authors argue that this approach will make CAPE more predictive for companies where retained earnings are expected to result in long-term growth.”
+# Map monthly weights to daily data by forward filling
+weight_data = weight_data.set_index(['Date', 'SEDOL']).unstack().ffill().stack()
 
-“For instance, if you take CAPE as a point-in-time measure, it’s reasonable to assume that companies not paying dividends, especially high-growth companies, might benefit from this adjustment. Growth companies generally reinvest heavily and don’t pay dividends, so P-CAPE theoretically works in their favor.”
+# Reshape weight_data to have a single Date index with each SEDOL as a column
+weight_data = weight_data.unstack(level='SEDOL')
+weight_data.columns = weight_data.columns.droplevel(0)  # Remove the redundant level in column names
 
-Why P-CAPE Might Not Be Better:
+daily_weights = weight_data.reindex(pd.to_datetime(daily_returns.index), method='ffill')
 
-“However, there are some issues with this idea. First, just because companies don’t pay a dividend doesn’t mean they reinvest all their earnings. Companies often hold earnings as a cash buffer, reduce debts, or use the funds for share buybacks. Reinvestment is not a given.”
+# Compute daily portfolio returns
+portfolio_daily_returns = (daily_returns * daily_weights).sum(axis=1)
 
-“Also, the companies we are talking about are listed companies that can raise capital from equity and debt markets, which often provides much more funding than what they generate in earnings in a given period.”
-
-“Finally, growth companies often report negative earnings, and they rely on external financing to fuel their growth. P-CAPE doesn’t account for this reality, and as such, it may not be identifying the true drivers of future growth in these companies.”
-
-2. Walkthrough of Charts and Findings:
-“Now, let’s move on to the findings from my analysis.”
-
-Chart 1: Amazon Quarterly Operating Profit & Cash Flow:
-
-“Here we see Amazon’s quarterly operating profit over time, which has increased dramatically. However, the cash flow chart shows that while Amazon has substantial operating cash flow, much of it is reinvested back into the business, but also a significant portion is held as cash or used for share buybacks.”
-
-“Amazon provides an interesting case because, as we know, it doesn’t pay dividends. If we used P-CAPE, it would assume that all retained earnings are reinvested into the business. But the reality, as we can see from the cash flow data, is more complex. A lot of cash is retained, but not all of it is used for reinvestment into growth.”
-
-Chart 2: CAPE vs. P-CAPE:
-
-“This chart compares CAPE to P-CAPE over time. As expected, P-CAPE consistently falls below CAPE, because it adjusts for retained earnings. The question is, does this lower P-CAPE number provide a better forecast of future returns?”
-
-“In reality, the difference between CAPE and P-CAPE is relatively small across many time periods. Even though P-CAPE adjusts for retained earnings, the adjustment doesn’t result in significantly better predictability of future earnings, particularly in cases where retained earnings are not fully reinvested.”
-
-Sector-Level Analysis:
-
-“Looking at sector-level analysis, the difference between CAPE and P-CAPE is even smaller in sectors like Information Technology. In this sector, companies retain earnings but often use them for buybacks rather than reinvestment. This limits the potential effectiveness of P-CAPE in improving predictions for future returns.”
-3. Conclusion with Focus on Buybacks:
-“Finally, let’s talk about the role of buybacks, which the paper does not address explicitly.”
-
-Note on Buybacks:
-
-“One of the main critiques of P-CAPE is how it handles companies that buy back stock. The authors assume that all retained earnings are reinvested, but in reality, companies often use their retained earnings for buybacks rather than reinvestment. This has significant implications.”
-
-“Buybacks increase earnings per share (EPS) by reducing the number of shares, but they don’t increase the company’s overall earnings or future growth. P-CAPE assumes reinvestment, but when a company uses retained earnings for buybacks, the benefit of that reinvestment doesn’t materialize in the same way.”
-
-“Buybacks are often seen positively by investors because they signal that management believes the stock is undervalued. However, from a growth perspective, buybacks do not expand the company’s operations or increase future revenues or profits.”
-
-“This creates an issue with P-CAPE, because the metric overestimates future earnings growth by assuming that retained earnings are always productively reinvested. If a company like Amazon uses its retained earnings for buybacks, the assumption that those earnings will drive future growth is flawed.”
-
-“Traditional CAPE, on the other hand, handles buybacks better because it doesn’t assume anything about how retained earnings are used. It simply averages historical earnings and doesn’t project future growth based on assumptions about reinvestment.”
-
-Closing:
-“In summary, while P-CAPE provides an interesting adjustment for retained earnings, it doesn’t account for companies that use buybacks instead of reinvestment. This leads to an overestimation of future growth in companies that prioritize buybacks, making P-CAPE less effective in practice than traditional CAPE, especially for companies that engage heavily in share repurchases.
+# Save or display the portfolio's daily returns
+portfolio_daily_returns.to_csv('portfolio_daily_returns.csv')
+print(portfolio_daily_returns)
