@@ -18,7 +18,11 @@ def load_weights_from_directory(directory_path):
     
     for file_path in all_files:
         # Extract the date from the filename (assuming format is consistent with your example)
-        date_str = file_path.split('-')[-3] + '-' + file_path.split('-')[-2] + '-' + file_path.split('-')[-1].replace('.csv', '')
+        print(file_path)
+        try:
+            date_str = file_path.split('-')[-3] + '-' + file_path.split('-')[-2] + '-' + file_path.split('-')[-1].replace('.csv', '')
+        except:
+            print(f"Found weird file {file_path}")
         date = pd.to_datetime(date_str)
         
         # Read each CSV file and select relevant columns
@@ -39,6 +43,7 @@ def fetch_daily_price_returns(sedols, start_date, end_date):
     
     # Dictionary to store data for each SEDOL
     data_dict = {}
+    missing_data = []
     
     for sedol in sedols:
         # Add the "SEDOL" prefix as needed
@@ -49,6 +54,7 @@ def fetch_daily_price_returns(sedols, start_date, end_date):
             data.columns = [sedol]  # Rename column to SEDOL identifier for merging
             data_dict[sedol] = data
         except Exception as e:
+            missing_data.append(sedol)
             print(f"Error fetching data for SEDOL {sedol}: {e}")
 
     # Concatenate all data into a single DataFrame
@@ -63,13 +69,16 @@ def fetch_daily_price_returns(sedols, start_date, end_date):
     # Pivot back to a wide format if required by later processing
     data = data.pivot(index='Date', columns='SEDOL', values='Price')
     
-    return data
+    return data, missing_data
 
 # Extract unique SEDOLs and set start and end dates for price data fetching
 unique_sedols = weight_data['SEDOL'].unique().tolist()
 start_date = weight_data['Date'].min().strftime('%Y-%m-%d')
 end_date = weight_data['Date'].max().strftime('%Y-%m-%d')
-price_data = fetch_daily_price_returns(unique_sedols, start_date, end_date)
+price_data, missing_data = fetch_daily_price_returns(unique_sedols, start_date, end_date)
+
+# Remove missing SEDOLs from weight_data
+weight_data = weight_data[~weight_data['SEDOL'].isin(missing_data)]
 
 # Calculate daily returns for each SEDOL
 daily_returns = price_data.pct_change()
@@ -86,6 +95,9 @@ weight_data = weight_data.unstack(level='SEDOL')
 weight_data.columns = weight_data.columns.droplevel(0)  # Remove the redundant level in column names
 
 daily_weights = weight_data.reindex(pd.to_datetime(daily_returns.index), method='ffill')
+
+# Normalize weights to ensure they sum to 1 for each day
+daily_weights = daily_weights.div(daily_weights.sum(axis=1), axis=0)
 
 # Compute daily portfolio returns
 portfolio_daily_returns = (daily_returns * daily_weights).sum(axis=1)
